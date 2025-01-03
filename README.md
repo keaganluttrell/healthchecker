@@ -14,5 +14,5 @@ node main.js input.yml
 
 ### Alternate usage: 
 ```sh
-node main.js <path/to/file.yml>
+node main.js path/to/file.yml
 ```
