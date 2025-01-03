@@ -5,10 +5,11 @@ import pLimit from 'p-limit';
 
 const config = {
     concurrencyLimit: 10,
-    responseThresholdinMs: 500,
+    responseThresholdInMs: 500,
     waitTimeInSeconds: 15,
 }
 
+let isShuttingDown = false;
 const limit = pLimit(config.concurrencyLimit);
 
 function getDomain(url) {
@@ -31,8 +32,8 @@ async function performHealthChecks(inputObject, healthchecks) {
                     method: endpoint.method || 'GET',
                     headers: endpoint.headers || {},
                     body: endpoint.body || null,
-                    signal: AbortSignal.timeout(config.responseThresholdinMs), // Automatically fails requests after threshold is exceeded
-                    keepalive: true,
+                    signal: AbortSignal.timeout(config.responseThresholdInMs), // Automatically fails requests after threshold is exceeded
+                    keepalive: true, // default
                 });
 
                 if (response.ok) {
@@ -41,10 +42,14 @@ async function performHealthChecks(inputObject, healthchecks) {
                     healthchecks[endpoint.domain].down += 1;
                 }
             } catch (err) {
-                // Log Aborted connections
-                // console.error(
-                //     `Unable to complete request to ${endpoint.url} in ${config.responseThresholdinMs}ms (error: ${err.message})`
-                // );
+                if (err.name === 'AbortError') {
+                    // Log Aborted connections
+                    // console.error(
+                    //     `Request Timeout for ${endpoint.url} (${config.responseThresholdInMs}ms) (error: ${err.message})`
+                    // );
+                } else {
+                    console.error(`Request failed: ${err.message}`);
+                }
                 healthchecks[endpoint.domain].down += 1;
             }
         })
@@ -58,6 +63,21 @@ async function performHealthChecks(inputObject, healthchecks) {
         console.log(`${domain} has ${availability}% availability percentage`);
     }
 }
+
+async function shutdown() {
+    if (isShuttingDown) return; // Prevent multiple shutdowns
+    isShuttingDown = true;
+
+    console.log("\nexiting...");
+    await new Promise((resolve) => setTimeout(resolve, 1000));
+
+    console.log("complete.");
+    process.exit(0);
+};
+
+// Capture termination signals
+process.on('SIGINT', shutdown); // Ctrl+C
+process.on('SIGTERM', shutdown); // Terminal Signal
 
 async function main() {
     const args = process.argv.slice(2);
@@ -112,7 +132,4 @@ async function main() {
     }, config.waitTimeInSeconds * 1000);
 }
 
-main().catch((err) => {
-    console.error("An unexpected error occurred:", err.message);
-    process.exit(1);
-});
+main();
