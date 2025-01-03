@@ -9,7 +9,6 @@ const config = {
     waitTimeInSeconds: 15,
 }
 
-let isShuttingDown = false;
 const limit = pLimit(config.concurrencyLimit);
 
 function getDomain(url) {
@@ -64,6 +63,7 @@ async function performHealthChecks(inputObject, healthchecks) {
     }
 }
 
+let isShuttingDown = false;
 async function shutdown() {
     if (isShuttingDown) return; // Prevent multiple shutdowns
     isShuttingDown = true;
