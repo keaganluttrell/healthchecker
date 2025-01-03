@@ -12,7 +12,7 @@ npm install
 node main.js input.yml
 ```
 
-### Alternate usage: 
+### Ad Hoc with any YAML file 
 ```sh
 node main.js path/to/file.yml
 ```
