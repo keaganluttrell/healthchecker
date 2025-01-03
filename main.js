@@ -42,13 +42,13 @@ async function performHealthChecks(inputArray, healthchecks) {
                     healthchecks[endpoint.domain].down += 1;
                 }
             } catch (err) {
-                if (err.name === 'AbortError') {
+                if (err.name === 'TimeoutError') {
                     // Log Aborted connections
                     // console.error(
                     //     `Request Timeout for ${endpoint.url} (${CONFIG.responseThresholdInMs}ms) (error: ${err.message})`
                     // );
                 } else {
-                    console.error(`Request failed: ${err.message}`);
+                    console.error(`Request failed for ${endpoint.url}: ${err.message}`);
                 }
                 healthchecks[endpoint.domain].down += 1;
             }
