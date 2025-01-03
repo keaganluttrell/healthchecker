@@ -1,5 +1,15 @@
 import fs from 'fs';
 import YAML from 'js-yaml';
+import pLimit from 'p-limit';
+
+
+const config = {
+    concurrencyLimit: 10,
+    responseThresholdinMs: 500,
+    waitTimeInSeconds: 15,
+}
+
+const limit = pLimit(config.concurrencyLimit);
 
 function getDomain(url) {
     try {
@@ -12,39 +22,42 @@ function getDomain(url) {
 }
 
 async function performHealthChecks(inputObject, healthchecks) {
-    const checkPromises = inputObject.map(async (endpoint) => {
-        if (!endpoint.domain) return; // Skip invalid domains
+    const checkPromises = inputObject.map((endpoint) =>
+        limit(async () => {
+            if (!endpoint.domain) return;
 
-        try {
-            const start = Date.now();
-            const response = await fetch(endpoint.url, {
-                method: endpoint.method || 'GET',
-                headers: endpoint.headers || {},
-                body: endpoint.body || null,
-            });
-            const latency = Date.now() - start;
+            try {
+                const response = await fetch(endpoint.url, {
+                    method: endpoint.method || 'GET',
+                    headers: endpoint.headers || {},
+                    body: endpoint.body || null,
+                    signal: AbortSignal.timeout(config.responseThresholdinMs), // Automatically fails requests after threshold is exceeded
+                    keepalive: true,
+                });
 
-            if (response.ok && latency < 500) {
-                healthchecks[endpoint.domain].up += 1;
-            } else {
+                if (response.ok) {
+                    healthchecks[endpoint.domain].up += 1;
+                } else {
+                    healthchecks[endpoint.domain].down += 1;
+                }
+            } catch (err) {
+                // Log Aborted connections
+                // console.error(
+                //     `Unable to complete request to ${endpoint.url} in ${config.responseThresholdinMs}ms (error: ${err.message})`
+                // );
                 healthchecks[endpoint.domain].down += 1;
             }
-        } catch (err) {
-            healthchecks[endpoint.domain].down += 1;
-            console.error(`Unable to complete request. ${endpoint.domain} is DOWN (error: ${err.message})`);
-        }
-    });
+        })
+    );
 
     await Promise.all(checkPromises);
 
-    // Log cumulative availability
     for (const [domain, stats] of Object.entries(healthchecks)) {
         const total = stats.up + stats.down;
-        const availability = total > 0 ? ((stats.up / total) * 100).toFixed(2) : "0.00";
+        const availability = total > 0 ? Math.round((stats.up / total) * 100) : "0";
         console.log(`${domain} has ${availability}% availability percentage`);
     }
 }
-
 
 async function main() {
     const args = process.argv.slice(2);
@@ -78,7 +91,7 @@ async function main() {
         process.exit(1);
     }
 
-    // Initialize healthchecks and domains
+    // Initialize domains for healthchecks
     const healthchecks = {};
 
     for (const endpoint of inputObject) {
@@ -96,7 +109,7 @@ async function main() {
     // Periodic health checks
     setInterval(async () => {
         await performHealthChecks(inputObject, healthchecks);
-    }, 15000);
+    }, config.waitTimeInSeconds * 1000);
 }
 
 main().catch((err) => {

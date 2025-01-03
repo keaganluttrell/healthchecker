@@ -1,0 +1,28 @@
+- headers:
+    user-agent: fetch-synthetic-monitor
+  method: GET
+  name: fetch about page
+  url: https://example.com/some/post/endpoint
+- headers:
+    user-agent: fetch-synthetic-monitor
+  method: GET
+  name: fetch index page
+  url: https://example.com/contact
+- headers:
+    user-agent: fetch-synthetic-monitor
+  method: GET
+  name: fetch careers page
+  url: https://example.com/contact
+- headers:
+    content-type: application/json
+    user-agent: fetch-synthetic-monitor
+  method: GET
+  name: fetch about page
+  url: https://samplewebsite.com/some/post/endpoint
+- body: '{"foo": "bar"}'
+  headers:
+    content-type: application/json
+    user-agent: fetch-synthetic-monitor
+  method: POST
+  name: fetch about page
+  url: https://samplewebsite.com/about
