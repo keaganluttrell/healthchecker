@@ -12,4 +12,5 @@ npm install
 node main.js input.yml
 ```
 
-Alternate usage: `node main.js <path/to/file.yml>`
+### Alternate usage: 
+`node main.js <path/to/file.yml>`
