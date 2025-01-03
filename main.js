@@ -12,8 +12,8 @@ function getDomain(url) {
 }
 
 async function performHealthChecks(inputObject, healthchecks) {
-    for (const endpoint of inputObject) {
-        if (!endpoint.domain) continue; // Skip invalid domains
+    const checkPromises = inputObject.map(async (endpoint) => {
+        if (!endpoint.domain) return; // Skip invalid domains
 
         try {
             const start = Date.now();
@@ -33,14 +33,18 @@ async function performHealthChecks(inputObject, healthchecks) {
             healthchecks[endpoint.domain].down += 1;
             console.error(`Unable to complete request. ${endpoint.domain} is DOWN (error: ${err.message})`);
         }
-    }
+    });
 
+    await Promise.all(checkPromises);
+
+    // Log cumulative availability
     for (const [domain, stats] of Object.entries(healthchecks)) {
         const total = stats.up + stats.down;
         const availability = total > 0 ? ((stats.up / total) * 100).toFixed(2) : "0.00";
         console.log(`${domain} has ${availability}% availability percentage`);
     }
 }
+
 
 async function main() {
     const args = process.argv.slice(2);
