@@ -2,14 +2,15 @@ import fs from 'fs';
 import YAML from 'js-yaml';
 import pLimit from 'p-limit';
 
-
-const config = {
+//////////// CONFIG ////////////
+const CONFIG = {
     concurrencyLimit: 10,
     responseThresholdInMs: 500,
     waitTimeInSeconds: 15,
 }
+///////////////////////////////
 
-const limit = pLimit(config.concurrencyLimit);
+const limit = pLimit(CONFIG.concurrencyLimit);
 
 function getDomain(url) {
     try {
@@ -21,8 +22,8 @@ function getDomain(url) {
     }
 }
 
-async function performHealthChecks(inputObject, healthchecks) {
-    const checkPromises = inputObject.map((endpoint) =>
+async function performHealthChecks(inputArray, healthchecks) {
+    const checkPromises = inputArray.map((endpoint) =>
         limit(async () => {
             if (!endpoint.domain) return;
 
@@ -31,7 +32,7 @@ async function performHealthChecks(inputObject, healthchecks) {
                     method: endpoint.method || 'GET',
                     headers: endpoint.headers || {},
                     body: endpoint.body || null,
-                    signal: AbortSignal.timeout(config.responseThresholdInMs), // Automatically fails requests after threshold is exceeded
+                    signal: AbortSignal.timeout(CONFIG.responseThresholdInMs), // Automatically fails requests after threshold is exceeded
                     keepalive: true, // default
                 });
 
@@ -44,7 +45,7 @@ async function performHealthChecks(inputObject, healthchecks) {
                 if (err.name === 'AbortError') {
                     // Log Aborted connections
                     // console.error(
-                    //     `Request Timeout for ${endpoint.url} (${config.responseThresholdInMs}ms) (error: ${err.message})`
+                    //     `Request Timeout for ${endpoint.url} (${CONFIG.responseThresholdInMs}ms) (error: ${err.message})`
                     // );
                 } else {
                     console.error(`Request failed: ${err.message}`);
@@ -75,38 +76,38 @@ async function shutdown() {
     process.exit(0);
 };
 
-// Capture termination signals
+// capture termination signals
 process.on('SIGINT', shutdown); // Ctrl+C
 process.on('SIGTERM', shutdown); // Terminal Signal
 
 async function main() {
     const args = process.argv.slice(2);
 
-    // Check if the file path is provided
+    // check if the file path is provided
     const filePath = args[0];
     if (!filePath) {
         console.error("Error: No file path provided.");
         process.exit(1);
     }
 
-    // Check if the file exists
+    // check if the file exists
     if (!fs.existsSync(filePath)) {
         console.error(`Error: No such file: ${filePath}`);
         process.exit(1);
     }
 
-    // Read the YAML file
-    let inputObject;
+    // read the YAML file
+    let inputArray;
     try {
         const inputYAML = fs.readFileSync(filePath, { encoding: "utf-8" });
-        inputObject = YAML.load(inputYAML);
+        inputArray = YAML.load(inputYAML);
     } catch (err) {
         console.error("Error parsing YAML:", err.message);
         process.exit(1);
     }
 
-    // Validate YAML structure
-    if (!Array.isArray(inputObject)) {
+    // validate YAML structure is a List
+    if (!Array.isArray(inputArray)) {
         console.error("Error: YAML Input must be a list of endpoints.");
         process.exit(1);
     }
@@ -114,22 +115,21 @@ async function main() {
     // Initialize domains for healthchecks
     const healthchecks = {};
 
-    for (const endpoint of inputObject) {
+    for (const endpoint of inputArray) {
         endpoint.domain = getDomain(endpoint.url);
         if (endpoint.domain) {
             healthchecks[endpoint.domain] = { up: 0, down: 0 };
         }
     }
 
-    console.log("Cumulative Availability:");
+    // run first healtchcheck prior
+    // setInterval executes the function after the first interval
+    await performHealthChecks(inputArray, healthchecks);
 
-    // Run the first health check immediately
-    await performHealthChecks(inputObject, healthchecks);
-
-    // Periodic health checks
+    const intervalInMS = CONFIG.waitTimeInSeconds * 1000
     setInterval(async () => {
-        await performHealthChecks(inputObject, healthchecks);
-    }, config.waitTimeInSeconds * 1000);
+        await performHealthChecks(inputArray, healthchecks);
+    }, intervalInMS);
 }
 
 await main();
