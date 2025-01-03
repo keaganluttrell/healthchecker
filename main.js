@@ -132,4 +132,4 @@ async function main() {
     }, config.waitTimeInSeconds * 1000);
 }
 
-main();
+await main();
